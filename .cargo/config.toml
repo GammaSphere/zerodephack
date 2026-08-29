@@ -1,0 +1,6 @@
+# Deterministic linking so `cargo build --release` is byte-reproducible on the
+# same machine and toolchain. MSVC embeds a link timestamp and a debug GUID by
+# default; /Brepro replaces both with content-derived values.
+# Scoped to the MSVC target so other platforms are unaffected.
+[target.x86_64-pc-windows-msvc]
+rustflags = ["-Clink-arg=/Brepro"]

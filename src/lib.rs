@@ -11,6 +11,7 @@
 //! - `render` turns results into tables, JSON, CSV or HTML.
 
 pub mod analysis;
+pub mod cli;
 pub mod git;
 pub mod render;
 pub mod util;

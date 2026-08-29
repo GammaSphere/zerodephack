@@ -77,7 +77,7 @@ pub struct Hotspot {
     pub lines: usize,
     /// Revisions times size, each normalised against the highest in the
     /// repository, so the result is comparable within one report and
-    /// meaningless across two.
+    /// meaningless across two. Size is taken on a log scale; see [`hotspots`].
     pub score: f64,
     pub last_change: i64,
 }
@@ -87,6 +87,15 @@ pub struct Hotspot {
 /// Either signal alone misleads. A changelog has hundreds of revisions and no
 /// complexity; a vendored library is enormous and never touched. The product is
 /// what points at code that is both intricate and unsettled.
+///
+/// Size enters on a log scale, and that choice is load-bearing. With a linear
+/// product a single enormous file wins outright: a 48,000-line generated test
+/// fixture touched twice outranked a 3,700-line source file touched thirteen
+/// times, which is precisely backwards. Maintenance risk does not grow linearly
+/// with line count, so compressing size lets revisions matter again.
+///
+/// Revisions stay linear. Doubling how often a file is edited really does
+/// double the number of chances to get it wrong.
 pub fn hotspots(history: &History, snapshot: &Snapshot, limit: usize) -> Vec<Hotspot> {
     let stats = tally(history);
 
@@ -109,9 +118,8 @@ pub fn hotspots(history: &History, snapshot: &Snapshot, limit: usize) -> Vec<Hot
 
     let max_revisions = rows.iter().map(|r| r.revisions).max().unwrap_or(1).max(1) as f64;
     let max_lines = rows.iter().map(|r| r.lines).max().unwrap_or(1).max(1) as f64;
-
     for row in &mut rows {
-        row.score = (row.revisions as f64 / max_revisions) * (row.lines as f64 / max_lines);
+        row.score = hotspot_score(row.revisions, row.lines, max_revisions, max_lines);
     }
 
     rows.sort_by(|a, b| {
@@ -122,6 +130,13 @@ pub fn hotspots(history: &History, snapshot: &Snapshot, limit: usize) -> Vec<Hot
     });
     rows.truncate(limit);
     rows
+}
+
+/// Churn times log-scaled size, both relative to the repository's maximum.
+fn hotspot_score(revisions: usize, lines: usize, max_revisions: f64, max_lines: f64) -> f64 {
+    let churn = revisions as f64 / max_revisions;
+    let size = (1.0 + lines as f64).ln() / (1.0 + max_lines).ln();
+    churn * size
 }
 
 // --------------------------------------------------------------- ownership
@@ -428,6 +443,32 @@ mod tests {
     fn a_wide_spread_needs_more_people() {
         assert_eq!(bus_factor(&stats_with(&[1, 1, 1, 1, 1])), 3);
         assert_eq!(bus_factor(&stats_with(&[2, 2, 2, 2])), 3);
+    }
+
+    #[test]
+    fn a_huge_rarely_touched_file_does_not_outrank_real_churn() {
+        // The case that forced log scaling, taken from a real repository: a
+        // 48,181-line generated fixture touched twice against a 3,720-line
+        // source file touched thirteen times. A linear product ranks the
+        // fixture first, which is exactly backwards.
+        let fixture = hotspot_score(2, 48_181, 13.0, 48_181.0);
+        let source = hotspot_score(13, 3_720, 13.0, 48_181.0);
+        assert!(
+            source > fixture,
+            "source {source:.3} should outrank fixture {fixture:.3}"
+        );
+    }
+
+    #[test]
+    fn churn_still_dominates_between_similar_sizes() {
+        let often = hotspot_score(20, 1000, 20.0, 1000.0);
+        let rarely = hotspot_score(2, 1000, 20.0, 1000.0);
+        assert!(often > rarely * 5.0, "ten times the churn must show");
+    }
+
+    #[test]
+    fn an_empty_file_scores_zero() {
+        assert_eq!(hotspot_score(50, 0, 50.0, 1000.0), 0.0);
     }
 
     #[test]

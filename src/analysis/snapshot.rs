@@ -44,6 +44,20 @@ impl Snapshot {
     pub fn total_lines(&self) -> usize {
         self.files.iter().map(|f| f.lines).sum()
     }
+
+    /// Keep only the files a predicate accepts, rebuilding the lookup index.
+    ///
+    /// The index holds positions, so dropping files without rebuilding it would
+    /// leave every later path pointing at the wrong entry.
+    pub fn retain(&mut self, keep: impl Fn(&FileInfo) -> bool) {
+        self.files.retain(&keep);
+        self.by_path = self
+            .files
+            .iter()
+            .enumerate()
+            .map(|(index, file)| (file.path.clone(), index))
+            .collect();
+    }
 }
 
 /// Measure every file in the tree of `commit`.

@@ -79,6 +79,21 @@ fn run(path: &std::path::Path) -> strata::git::Result<()> {
     println!("authors : {}", authors.len());
     println!("span    : {oldest} .. {newest}");
 
+    let options = strata::analysis::history::Options::new();
+    let history = strata::analysis::history::walk(&repo, tip, &options)?;
+    println!("walked  : {} commits, {} files, {} authors",
+        history.commits.len(), history.paths.len(), history.authors.len());
+    let total_changes: usize = history.commits.iter().map(|c| c.touched.len()).sum();
+    println!("changes : {total_changes} file touches");
+
+    if std::env::args().any(|a| a == "--dump-changes") {
+        for commit in &history.commits {
+            for (path, _kind) in &commit.touched {
+                println!("{} {}", commit.oid, history.path(*path));
+            }
+        }
+    }
+
     let tree_oid = reader.commit(tip)?.tree;
     let tree = reader.tree(tree_oid)?;
     println!("tree    : {} entries at head", tree.entries.len());

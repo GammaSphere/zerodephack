@@ -10,5 +10,6 @@
 //! - `analysis` walks history and computes the metrics.
 //! - `render` turns results into tables, JSON, CSV or HTML.
 
+pub mod analysis;
 pub mod git;
 pub mod util;

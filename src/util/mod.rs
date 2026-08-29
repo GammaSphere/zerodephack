@@ -3,4 +3,5 @@
 pub mod date;
 pub mod glob;
 pub mod inflate;
+pub mod paths;
 pub mod width;

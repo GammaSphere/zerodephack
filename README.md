@@ -126,7 +126,7 @@ Correctness claims are worth only as much as what backs them, so:
   `git cat-file --batch-all-objects --batch-check`.
 - **Change sets match git exactly.** Across seven repositories, the
   `(commit, path)` set is byte-identical to `git log --no-merges --name-only`.
-- **134 tests**, including a DEFLATE corpus of 44 streams covering overlapping
+- **137 tests**, including a DEFLATE corpus of 44 streams covering overlapping
   matches, the 32 KiB window edge, the 65535-byte stored-block limit,
   incompressible input, and every byte value at four compression levels.
 - **17 end-to-end tests** against a committed 19-commit repository fixture with

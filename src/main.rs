@@ -93,8 +93,8 @@ fn run(args: &Args, now: i64) -> Result<(), String> {
     }
     if walked.unreadable > 0 {
         eprintln!(
-            "strata: warning: {} commits referenced but not present",
-            walked.unreadable
+            "strata: warning: {} referenced but not present",
+            plural(walked.unreadable, "commit", "commits")
         );
     }
 
@@ -201,11 +201,16 @@ fn render_summary(
 
     let mut out = format!("{name} · {head}\n\n");
 
+    // "over today" reads as a typo, so a span of zero days gets its own wording.
+    let span = if span_days == 0 {
+        "in a single day".to_string()
+    } else {
+        format!("over {}", date::humanise_days(span_days))
+    };
     out.push_str(&format!(
-        "  {} commits by {} over {}\n",
-        summary.commits,
+        "  {} by {} {span}\n",
+        plural(summary.commits, "commit", "commits"),
         plural(summary.authors, "author", "authors"),
-        date::humanise_days(span_days)
     ));
     out.push_str(&format!(
         "  {} files, {} lines, first commit {}\n",

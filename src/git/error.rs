@@ -10,6 +10,7 @@ use std::path::PathBuf;
 
 use crate::git::oid::Oid;
 use crate::util::inflate::InflateError;
+use crate::util::paths;
 
 #[derive(Debug)]
 pub enum Error {
@@ -60,7 +61,7 @@ impl fmt::Display for Error {
             Error::NotARepository { start } => write!(
                 f,
                 "no git repository found at or above {}",
-                start.display()
+                paths::display(start)
             ),
             Error::UnsupportedObjectFormat { format } => write!(
                 f,
@@ -69,9 +70,9 @@ impl fmt::Display for Error {
             Error::ObjectNotFound { oid } => {
                 write!(f, "object {oid} is not present in this repository")
             }
-            Error::Io { path, source } => write!(f, "{}: {source}", path.display()),
+            Error::Io { path, source } => write!(f, "{}: {source}", paths::display(path)),
             Error::Inflate { path, source } => {
-                write!(f, "{}: corrupt compressed data {source}", path.display())
+                write!(f, "{}: corrupt compressed data {source}", paths::display(path))
             }
             Error::Malformed {
                 what,

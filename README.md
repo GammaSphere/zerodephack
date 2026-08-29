@@ -130,6 +130,12 @@ Correctness claims are worth only as much as what backs them, so:
   `git cat-file --batch-all-objects --batch-check`.
 - **Change sets match git exactly.** Across seven repositories, the
   `(commit, path)` set is byte-identical to `git log --no-merges --name-only`.
+- **It holds up at real-world scale.** On a clone of
+  [rust-lang/log](https://github.com/rust-lang/log) — 994 commits, 3,993 packed
+  objects, 143 contributors — every object verifies, and per-file revision
+  counts match git exactly for every file at HEAD. Commit and author totals
+  agree in both modes: 668 commits by 138 authors excluding merges, 994 by 143
+  with `--include-merges`. The whole run takes **105 ms**.
 - **137 tests**, including a DEFLATE corpus of 44 streams covering overlapping
   matches, the 32 KiB window edge, the 65535-byte stored-block limit,
   incompressible input, and every byte value at four compression levels.
@@ -162,8 +168,8 @@ Things `strata` does not do, stated here rather than left for you to discover:
   complexity, co-change for coupling. They point at places worth a human's
   attention, not at defects.
 - **Terminal width comes from `COLUMNS`**, because `std` has no `ioctl`.
-- **Single-threaded.** Fast enough not to need otherwise (under 200 ms on the
-  repositories tested), and the object layer is built so that threading would
+- **Single-threaded.** Fast enough not to need otherwise — 105 ms over a
+  994-commit repository — and the object layer is built so that threading would
   be safe to add.
 - **Decompression is about 2.8× slower than C zlib.** Measured, not estimated —
   see [STDLIB.md](STDLIB.md).

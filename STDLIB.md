@@ -77,11 +77,13 @@ as a crate.
   depth so a hand-edited cycle cannot hang, and a ref naming a path outside the
   repository is ignored rather than followed.
 
-**Verification:** across two fixture repositories totalling 629 objects, 73 of
-them deltas with chains up to depth 40, every reconstructed object hashes to the
-id the pack index filed it under, and every object's type and size matches
-`git cat-file --batch-all-objects`. Across seven repositories the per-commit
-change set is byte-identical to `git log --no-merges --name-only`.
+**Verification:** every reconstructed object hashes to the id it is filed under,
+and every object's type and size matches `git cat-file --batch-all-objects`.
+Across seven repositories the per-commit change set is byte-identical to
+`git log --no-merges --name-only`. On a clone of rust-lang/log — 994 commits and
+3,993 packed objects written by real `git gc`, not by a fixture script — all
+3,993 verify and per-file revision counts match git exactly for every file at
+HEAD.
 
 **Not supported, and stated rather than discovered:** SHA-256 repositories
 (detected and refused by name), pack index version 1 (superseded in 2006),
@@ -317,8 +319,8 @@ immutable and shareable, and readers hold no shared state precisely so that a
 reader per worker thread would be safe.
 
 It is listed here because the design accommodates it and the temptation to claim
-it was real. The tool runs in under 200 ms on the repositories tested, so
-threading would have been complexity bought with nothing.
+it was real. The tool takes 105 ms over a 994-commit repository, so threading
+would have been complexity bought with nothing.
 
 ---
 

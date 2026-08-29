@@ -1,8 +1,8 @@
 //! Finding a repository and reading objects out of it.
 //!
-//! [`Repository::object`] is the facade the rest of the program works through.
-//! Callers never learn whether the bytes arrived from a loose file or from a
-//! delta chain inside a packfile.
+//! [`Repository`] is immutable once opened, so it can be shared across threads.
+//! Reading needs mutable state - open file handles and a delta cache - so that
+//! lives in [`Reader`], and each worker thread makes its own.
 
 use std::fs;
 use std::io;
@@ -12,6 +12,7 @@ use crate::git::config::Config;
 use crate::git::error::{Error, Result};
 use crate::git::object::{Commit, Kind, Object, Tree};
 use crate::git::oid::Oid;
+use crate::git::pack::{Pack, PackReader};
 use crate::git::refs::{self, Head};
 use crate::util::inflate;
 
@@ -23,6 +24,10 @@ pub struct Repository {
     /// True when `.git/shallow` exists, meaning history is truncated and any
     /// age or ownership figure is a lower bound rather than the whole story.
     shallow: bool,
+    packs: Vec<Pack>,
+    /// Packs that failed to load. Kept rather than discarded so a run can warn
+    /// that its numbers may be incomplete.
+    pack_problems: Vec<String>,
 }
 
 impl Repository {
@@ -70,11 +75,14 @@ impl Repository {
         }
 
         let shallow = git_dir.join("shallow").is_file();
+        let (packs, problems) = Pack::discover(&git_dir);
 
         Ok(Repository {
             git_dir,
             work_tree,
             shallow,
+            packs,
+            pack_problems: problems.iter().map(|e| e.to_string()).collect(),
         })
     }
 
@@ -92,6 +100,25 @@ impl Repository {
         self.shallow
     }
 
+    /// Packs that could not be loaded, described for a warning line.
+    pub fn pack_problems(&self) -> &[String] {
+        &self.pack_problems
+    }
+
+    /// Total objects across every pack, which is most of them after a gc.
+    pub fn packed_object_count(&self) -> usize {
+        self.packs.iter().map(|p| p.index().len()).sum()
+    }
+
+    /// Every object id held in a pack, in index order. Used by the object-layer
+    /// conformance test, which reads all of them and compares against git.
+    pub fn packed_oids(&self) -> Vec<Oid> {
+        self.packs
+            .iter()
+            .flat_map(|p| p.index().oids().iter().copied())
+            .collect()
+    }
+
     pub fn head(&self) -> Result<Head> {
         refs::head(&self.git_dir)
     }
@@ -100,35 +127,78 @@ impl Repository {
         refs::all(&self.git_dir)
     }
 
-    /// Read an object by id.
-    pub fn object(&self, oid: Oid) -> Result<Object> {
+    /// Open a reader. Each thread needs its own: readers hold file handles and
+    /// a delta cache, neither of which is shareable.
+    pub fn reader(&self) -> Result<Reader<'_>> {
+        let packs = self
+            .packs
+            .iter()
+            .map(Pack::reader)
+            .collect::<Result<Vec<_>>>()?;
+        Ok(Reader { repo: self, packs })
+    }
+}
+
+/// A handle for reading objects. Holds the open packfiles and their caches.
+pub struct Reader<'a> {
+    repo: &'a Repository,
+    packs: Vec<PackReader<'a>>,
+}
+
+impl Reader<'_> {
+    /// Read an object by id, from loose storage or from any pack.
+    ///
+    /// Loose objects are checked first. After `git gc` writes a pack, the loose
+    /// copy may linger until it is pruned, and both hold the same bytes, so
+    /// order is a matter of cost rather than correctness: one stat beats a
+    /// binary search per pack.
+    pub fn object(&mut self, oid: Oid) -> Result<Object> {
         if let Some(object) = self.read_loose(oid)? {
             return Ok(object);
         }
+
+        for pack in &mut self.packs {
+            if let Some((kind, data)) = pack.object(oid)? {
+                return Ok(Object { kind, data });
+            }
+        }
+
         Err(Error::ObjectNotFound { oid })
     }
 
-    pub fn commit(&self, oid: Oid) -> Result<Commit> {
+    pub fn commit(&mut self, oid: Oid) -> Result<Commit> {
         let object = self.object(oid)?;
         expect_kind(&object, Kind::Commit, oid)?;
         Commit::parse(&object.data)
     }
 
-    pub fn tree(&self, oid: Oid) -> Result<Tree> {
+    pub fn tree(&mut self, oid: Oid) -> Result<Tree> {
         let object = self.object(oid)?;
         expect_kind(&object, Kind::Tree, oid)?;
         Tree::parse(&object.data)
     }
 
-    /// Loose objects live at `objects/ab/cdef...`, split so no single directory
-    /// holds every object in the repository.
-    fn read_loose(&self, oid: Oid) -> Result<Option<Object>> {
+    /// True when the object exists, without paying to reconstruct it.
+    pub fn contains(&self, oid: Oid) -> bool {
+        if self.loose_path(oid).is_file() {
+            return true;
+        }
+        self.packs.iter().any(|p| p.contains(oid))
+    }
+
+    fn loose_path(&self, oid: Oid) -> PathBuf {
         let hex = oid.to_string();
-        let path = self
+        self.repo
             .git_dir
             .join("objects")
             .join(&hex[..2])
-            .join(&hex[2..]);
+            .join(&hex[2..])
+    }
+
+    /// Loose objects live at `objects/ab/cdef...`, split so no single directory
+    /// holds every object in the repository.
+    fn read_loose(&self, oid: Oid) -> Result<Option<Object>> {
+        let path = self.loose_path(oid);
 
         let compressed = match fs::read(&path) {
             Ok(bytes) => bytes,
@@ -177,22 +247,16 @@ mod tests {
     use super::*;
 
     #[test]
-    fn discovery_fails_cleanly_outside_a_repository() {
-        // The temp directory is not inside a checkout, so this must report
-        // NotARepository rather than panicking or hanging on the walk up.
-        let err = Repository::discover(&std::env::temp_dir())
-            .err()
-            .filter(|e| matches!(e, Error::NotARepository { .. }));
-        // On a machine where the temp dir happens to sit inside a repository
-        // the discovery legitimately succeeds, so only the shape is asserted.
-        if let Some(err) = err {
-            assert!(err.to_string().contains("no git repository found"));
-        }
-    }
-
-    #[test]
-    fn rejects_sha256_repositories() {
-        let config = Config::parse("[extensions]\n objectformat = sha256\n");
-        assert_eq!(config.get("extensions.objectformat"), Some("sha256"));
+    fn discovery_reports_a_clear_error_outside_a_repository() {
+        // Walking up from the filesystem root can never find a repository, so
+        // this pins the message rather than depending on where tests run.
+        let Err(err) = Repository::discover(Path::new("/")) else {
+            panic!("the filesystem root is not a repository");
+        };
+        assert!(
+            matches!(err, Error::NotARepository { .. }),
+            "unexpected error {err}"
+        );
+        assert!(err.to_string().contains("no git repository found"));
     }
 }

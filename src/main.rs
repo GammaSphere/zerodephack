@@ -20,11 +20,36 @@ fn main() {
 
 fn run(path: &std::path::Path) -> strata::git::Result<()> {
     let repo = Repository::discover(path)?;
+    let mut reader = repo.reader()?;
+
+    // Temporary verification hook: dump every packed object the way
+    // `git cat-file --batch-check` does, so the two can be diffed.
+    if std::env::args().any(|a| a == "--dump") {
+        let verify = std::env::args().any(|a| a == "--verify");
+        let mut mismatches = 0usize;
+        for oid in repo.packed_oids() {
+            let object = reader.object(oid)?;
+            if verify {
+                let computed = strata::git::sha1::object_id(object.kind, &object.data);
+                if computed != oid {
+                    eprintln!("MISMATCH: index says {oid}, content hashes to {computed}");
+                    mismatches += 1;
+                }
+            } else {
+                println!("{oid} {} {}", object.kind, object.data.len());
+            }
+        }
+        if verify {
+            eprintln!("verified {} objects, {mismatches} mismatches", repo.packed_oids().len());
+        }
+        return Ok(());
+    }
     let head = repo.head()?;
     println!("git dir : {}", repo.git_dir().display());
     println!("head    : {}", head.describe());
     println!("shallow : {}", repo.is_shallow());
     println!("refs    : {}", repo.refs()?.len());
+    println!("packed  : {} objects", repo.packed_object_count());
 
     let Some(tip) = head.target() else {
         println!("no commits to walk");
@@ -42,7 +67,7 @@ fn run(path: &std::path::Path) -> strata::git::Result<()> {
         if !seen.insert(oid) {
             continue;
         }
-        let commit = repo.commit(oid)?;
+        let commit = reader.commit(oid)?;
         commits += 1;
         authors.insert(commit.author.identity_key());
         oldest = oldest.min(commit.author.time);
@@ -54,7 +79,8 @@ fn run(path: &std::path::Path) -> strata::git::Result<()> {
     println!("authors : {}", authors.len());
     println!("span    : {oldest} .. {newest}");
 
-    let tree = repo.tree(repo.commit(tip)?.tree)?;
+    let tree_oid = reader.commit(tip)?.tree;
+    let tree = reader.tree(tree_oid)?;
     println!("tree    : {} entries at head", tree.entries.len());
     Ok(())
 }

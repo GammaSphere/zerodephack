@@ -7,10 +7,12 @@
 pub mod config;
 pub mod error;
 pub mod object;
+pub mod pack;
 pub mod oid;
 pub mod refs;
+pub mod sha1;
 pub mod repo;
 
 pub use error::{Error, Result};
 pub use oid::Oid;
-pub use repo::Repository;
+pub use repo::{Reader, Repository};

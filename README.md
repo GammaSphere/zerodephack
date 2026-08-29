@@ -126,9 +126,13 @@ Correctness claims are worth only as much as what backs them, so:
   `git cat-file --batch-all-objects --batch-check`.
 - **Change sets match git exactly.** Across seven repositories, the
   `(commit, path)` set is byte-identical to `git log --no-merges --name-only`.
-- **117 tests**, including a DEFLATE corpus of 44 streams covering overlapping
+- **134 tests**, including a DEFLATE corpus of 44 streams covering overlapping
   matches, the 32 KiB window edge, the 65535-byte stored-block limit,
   incompressible input, and every byte value at four compression levels.
+- **17 end-to-end tests** against a committed 19-commit repository fixture with
+  a rename, a deletion, a merge, an empty commit, a binary blob and a non-ASCII
+  filename. Every expected number in them came from git, and the command that
+  produced it is named in the comment beside it.
 
 ```sh
 cargo test
@@ -158,7 +162,7 @@ Things `strata` does not do, stated here rather than left for you to discover:
   repositories tested), and the object layer is built so that threading would
   be safe to add.
 - **Decompression is about 2.8× slower than C zlib.** Measured, not estimated —
-  see [STDLIB.md](STDLIB.md#1-flate2--srcutilinflaters).
+  see [STDLIB.md](STDLIB.md).
 - **Not supported:** pack index version 1, `objects/info/alternates`, and
   cross-pack `REF_DELTA` bases (which only occur in thin packs, resolved before
   they reach disk).
@@ -192,9 +196,9 @@ cargo clean && cargo build --release && sha256sum target/release/strata*
 cargo clean && cargo build --release && sha256sum target/release/strata*
 ```
 
-One caveat, since it cost an hour to find: setting the `RUSTFLAGS` environment
-variable — even to an empty string — **overrides** `.cargo/config.toml` and
-reproducibility is lost. Leave it unset.
+One caveat worth knowing: setting the `RUSTFLAGS` environment variable — even
+to an empty string — **overrides** `.cargo/config.toml`, and reproducibility is
+lost. Leave it unset.
 
 ## Why this is legitimate under the rules
 

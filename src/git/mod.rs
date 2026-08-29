@@ -7,11 +7,11 @@
 pub mod config;
 pub mod error;
 pub mod object;
-pub mod pack;
 pub mod oid;
+pub mod pack;
 pub mod refs;
-pub mod sha1;
 pub mod repo;
+pub mod sha1;
 
 pub use error::{Error, Result};
 pub use oid::Oid;

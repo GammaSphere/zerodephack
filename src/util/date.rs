@@ -122,8 +122,7 @@ pub fn to_epoch(year: i64, month: u32, day: u32) -> i64 {
 
     let shifted_month = if month > 2 { month - 3 } else { month + 9 };
     let day_of_year = (153 * shifted_month + 2) / 5 + day - 1;
-    let day_of_era =
-        year_of_era * 365 + year_of_era / 4 - year_of_era / 100 + day_of_year;
+    let day_of_era = year_of_era * 365 + year_of_era / 4 - year_of_era / 100 + day_of_year;
 
     (era * 146_097 + day_of_era - 719_468) * SECONDS_PER_DAY
 }
@@ -254,7 +253,10 @@ mod tests {
             let advanced = current.day == previous.day + 1
                 || (current.day == 1 && current.month == previous.month + 1)
                 || (current.day == 1 && current.month == 1 && current.year == previous.year + 1);
-            assert!(advanced, "{previous:?} did not advance cleanly to {current:?}");
+            assert!(
+                advanced,
+                "{previous:?} did not advance cleanly to {current:?}"
+            );
             previous = current;
         }
     }

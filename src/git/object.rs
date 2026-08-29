@@ -65,10 +65,9 @@ impl Object {
             .ok_or_else(|| Error::malformed("object header", 0, "no NUL terminator"))?;
 
         let header = &bytes[..nul];
-        let space = header
-            .iter()
-            .position(|&b| b == b' ')
-            .ok_or_else(|| Error::malformed("object header", 0, "no space between type and size"))?;
+        let space = header.iter().position(|&b| b == b' ').ok_or_else(|| {
+            Error::malformed("object header", 0, "no space between type and size")
+        })?;
 
         let kind = Kind::from_bytes(&header[..space]).ok_or_else(|| {
             Error::malformed(

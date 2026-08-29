@@ -39,10 +39,10 @@ impl Pattern {
         }
 
         // A bare pattern also applies to each path's final segment.
-        if self.any_depth {
-            if let Some(position) = path.iter().rposition(|&b| b == b'/') {
-                return match_here(&self.pattern, &path[position + 1..]);
-            }
+        if self.any_depth
+            && let Some(position) = path.iter().rposition(|&b| b == b'/')
+        {
+            return match_here(&self.pattern, &path[position + 1..]);
         }
 
         false
@@ -92,9 +92,7 @@ fn match_here(pattern: &[u8], path: &[u8]) -> bool {
 
         b'?' => !path.is_empty() && path[0] != b'/' && match_here(&pattern[1..], &path[1..]),
 
-        literal => {
-            !path.is_empty() && path[0] == literal && match_here(&pattern[1..], &path[1..])
-        }
+        literal => !path.is_empty() && path[0] == literal && match_here(&pattern[1..], &path[1..]),
     }
 }
 

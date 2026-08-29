@@ -93,7 +93,11 @@ fn rejects_a_truncated_stream() {
     let err = inflate::zlib_decompress(truncated, 0).expect_err("truncation must be caught");
     assert_eq!(err.kind, ErrorKind::UnexpectedEof);
     // The offset has to point somewhere real, or it is not worth reporting.
-    assert!(err.offset <= truncated.len(), "offset {} is past the input", err.offset);
+    assert!(
+        err.offset <= truncated.len(),
+        "offset {} is past the input",
+        err.offset
+    );
 }
 
 #[test]

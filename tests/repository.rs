@@ -262,7 +262,9 @@ fn coupling_finds_files_that_change_together() {
     // away, so the pair cannot appear - both sides must still exist.
     let pairs = reports::coupling(&history, &current, 1, usize::MAX);
     assert!(
-        pairs.iter().all(|p| p.a != "src/parser.py" && p.b != "src/parser.py"),
+        pairs
+            .iter()
+            .all(|p| p.a != "src/parser.py" && p.b != "src/parser.py"),
         "a file that no longer exists cannot be coupled to anything"
     );
 

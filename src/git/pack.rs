@@ -289,9 +289,11 @@ impl PackReader<'_> {
                     // A REF_DELTA may point into another pack entirely. Only
                     // same-pack bases can be followed from here; the repository
                     // layer retries the rest across every pack it knows.
-                    let base_offset = self.pack.index.find(base_oid).ok_or(Error::ObjectNotFound {
-                        oid: base_oid,
-                    })?;
+                    let base_offset = self
+                        .pack
+                        .index
+                        .find(base_oid)
+                        .ok_or(Error::ObjectNotFound { oid: base_oid })?;
                     patches.push(record.data);
                     current = base_offset;
                 }
@@ -371,7 +373,13 @@ fn is_truncation(error: &Error) -> bool {
         error,
         Error::Inflate { source, .. }
             if source.kind == inflate::ErrorKind::UnexpectedEof
-    ) || matches!(error, Error::Malformed { what: "pack record", .. })
+    ) || matches!(
+        error,
+        Error::Malformed {
+            what: "pack record",
+            ..
+        }
+    )
 }
 
 fn decode_record(buffer: &[u8], offset: u64) -> Result<Record> {
@@ -389,7 +397,11 @@ fn decode_record(buffer: &[u8], offset: u64) -> Result<Record> {
     let mut byte = first;
     while byte & 0x80 != 0 {
         byte = *buffer.get(cursor).ok_or_else(|| {
-            Error::malformed("pack record", cursor, "size runs past the end of the window")
+            Error::malformed(
+                "pack record",
+                cursor,
+                "size runs past the end of the window",
+            )
         })?;
         cursor += 1;
         size |= ((byte & 0x7f) as u64) << shift;
@@ -448,12 +460,13 @@ fn decode_record(buffer: &[u8], offset: u64) -> Result<Record> {
         }
     };
 
-    let inflated = inflate::zlib_decompress(&buffer[cursor..], size as usize).map_err(|source| {
-        Error::Inflate {
-            path: PathBuf::from(format!("pack offset {offset}")),
-            source,
-        }
-    })?;
+    let inflated =
+        inflate::zlib_decompress(&buffer[cursor..], size as usize).map_err(|source| {
+            Error::Inflate {
+                path: PathBuf::from(format!("pack offset {offset}")),
+                source,
+            }
+        })?;
 
     // A delta's payload is the patch, whose length is unrelated to the object
     // it produces, so only whole records can be size-checked here.
@@ -519,18 +532,19 @@ pub fn apply_delta(base: &[u8], delta: &[u8]) -> Result<Vec<u8>> {
                 len = 0x10000;
             }
 
-            let end = from.checked_add(len).ok_or_else(|| {
-                Error::malformed("delta", cursor, "copy range overflows")
+            let end = from
+                .checked_add(len)
+                .ok_or_else(|| Error::malformed("delta", cursor, "copy range overflows"))?;
+            let slice = base.get(from as usize..end as usize).ok_or_else(|| {
+                Error::malformed(
+                    "delta",
+                    cursor,
+                    format!(
+                        "copy of {len} bytes at {from} runs past the {}-byte base",
+                        base.len()
+                    ),
+                )
             })?;
-            let slice = base
-                .get(from as usize..end as usize)
-                .ok_or_else(|| {
-                    Error::malformed(
-                        "delta",
-                        cursor,
-                        format!("copy of {len} bytes at {from} runs past the {}-byte base", base.len()),
-                    )
-                })?;
             out.extend_from_slice(slice);
         } else if op != 0 {
             // Insert: the opcode itself is the number of literal bytes.
@@ -541,7 +555,11 @@ pub fn apply_delta(base: &[u8], delta: &[u8]) -> Result<Vec<u8>> {
             out.extend_from_slice(slice);
             cursor += len;
         } else {
-            return Err(Error::malformed("delta", cursor - 1, "opcode 0 is reserved"));
+            return Err(Error::malformed(
+                "delta",
+                cursor - 1,
+                "opcode 0 is reserved",
+            ));
         }
     }
 
@@ -577,7 +595,11 @@ fn read_delta_varint(data: &[u8], cursor: &mut usize) -> Result<u64> {
         }
         shift += 7;
         if shift > 63 {
-            return Err(Error::malformed("delta", *cursor, "size varint is too long"));
+            return Err(Error::malformed(
+                "delta",
+                *cursor,
+                "size varint is too long",
+            ));
         }
     }
 }

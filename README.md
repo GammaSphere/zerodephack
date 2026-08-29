@@ -107,7 +107,7 @@ apart.
     --include-merges     Count merge commits, which are skipped by default
     --json / --csv       Machine-readable output
     --no-color           Never colour output (NO_COLOR is also honoured)
-    --verify             Check every object's SHA-1 while reading
+    --verify             Check every object's SHA-1, loose and packed
 ```
 
 Exit codes: `0` success, `1` the repository could not be read, `2` the command
@@ -117,11 +117,15 @@ line was wrong.
 
 Correctness claims are worth only as much as what backs them, so:
 
-- **Every packed object round-trips.** Across two fixture repositories totalling
-  **629 objects — 73 of them deltas, with chains up to depth 40** — every
-  reconstructed object hashes to the SHA-1 the pack index filed it under. A
-  delta applied wrongly by one byte cannot pass this. Run it yourself with
-  `strata --verify`.
+- **Every object round-trips.** Across the repositories tested — **over 1,300
+  objects, including 73 deltas with chains up to depth 40** — every
+  reconstructed object hashes to the SHA-1 it is filed under. A delta applied
+  wrongly by a single byte cannot pass this. Run it on your own repository:
+
+  ```sh
+  strata --verify /path/to/repo
+  strata: verified 479 objects (479 loose, 0 packed)
+  ```
 - **Object types and sizes match git exactly**, checked against
   `git cat-file --batch-all-objects --batch-check`.
 - **Change sets match git exactly.** Across seven repositories, the
@@ -184,8 +188,8 @@ a native C library.
 Two clean `cargo build --release` runs produce a byte-identical binary:
 
 ```
-5de3a07b925a2c780eb0bda7e7810720d88bcaed9a4a947dbd420adaf28e209c
-5de3a07b925a2c780eb0bda7e7810720d88bcaed9a4a947dbd420adaf28e209c
+1c92556b97cd00eab4406417e6f9b2929e8b566666a6440bf256c15e72d65a4d
+1c92556b97cd00eab4406417e6f9b2929e8b566666a6440bf256c15e72d65a4d
 ```
 
 MSVC embeds a link timestamp and a debug GUID by default, so

@@ -38,7 +38,10 @@ impl Head {
             Head::Branch { name, .. } => name.trim_start_matches("refs/heads/").to_string(),
             Head::Detached(oid) => format!("detached at {}", oid.short()),
             Head::Unborn { name } => {
-                format!("{} (no commits yet)", name.trim_start_matches("refs/heads/"))
+                format!(
+                    "{} (no commits yet)",
+                    name.trim_start_matches("refs/heads/")
+                )
             }
         }
     }

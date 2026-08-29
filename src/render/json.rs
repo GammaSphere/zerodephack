@@ -184,7 +184,10 @@ mod tests {
         assert!(out.contains(r"\\slash\\"));
         assert!(out.contains(r"\n"));
         assert!(out.contains(r"\t"));
-        assert!(!out.contains('\n') || out.ends_with('\n'), "no raw newline inside the string");
+        assert!(
+            !out.contains('\n') || out.ends_with('\n'),
+            "no raw newline inside the string"
+        );
     }
 
     #[test]

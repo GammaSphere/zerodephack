@@ -25,8 +25,9 @@ const CODE_LENGTH_CODES: usize = 19;
 
 /// Code lengths for the code-length alphabet arrive in this order so that
 /// trailing zeroes can be omitted (RFC 1951 section 3.2.7).
-const CODE_LENGTH_ORDER: [usize; CODE_LENGTH_CODES] =
-    [16, 17, 18, 0, 8, 7, 9, 6, 10, 5, 11, 4, 12, 3, 13, 2, 14, 1, 15];
+const CODE_LENGTH_ORDER: [usize; CODE_LENGTH_CODES] = [
+    16, 17, 18, 0, 8, 7, 9, 6, 10, 5, 11, 4, 12, 3, 13, 2, 14, 1, 15,
+];
 
 /// Base match length for length symbols 257..=285.
 const LENGTH_BASE: [u16; 29] = [
@@ -242,9 +243,9 @@ impl Huffman {
         // Check that the code neither overflows the tree nor leaves it ragged.
         // `left` tracks unused codes available at the current length.
         let mut left = 1i32;
-        for len in 1..=MAX_BITS {
+        for &count in &counts[1..=MAX_BITS] {
             left <<= 1;
-            left -= counts[len] as i32;
+            left -= count as i32;
             if left < 0 {
                 return Err(ErrorKind::OversubscribedCode);
             }
@@ -516,7 +517,7 @@ pub fn zlib_decompress(input: &[u8], size_hint: usize) -> Result<Inflated, Infla
         });
     }
     // The two header bytes read as a big-endian u16 must be a multiple of 31.
-    if (cmf as u16 * 256 + flg as u16) % 31 != 0 {
+    if !(cmf as u16 * 256 + flg as u16).is_multiple_of(31) {
         return Err(InflateError {
             kind: ErrorKind::InvalidZlibHeader { cmf, flg },
             offset: 0,

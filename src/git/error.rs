@@ -25,10 +25,7 @@ pub enum Error {
     /// A file could not be read.
     Io { path: PathBuf, source: io::Error },
     /// A zlib stream failed to decode.
-    Inflate {
-        path: PathBuf,
-        source: InflateError,
-    },
+    Inflate { path: PathBuf, source: InflateError },
     /// A structure was malformed. `offset` is relative to the start of the
     /// decompressed object, or of the file when nothing was decompressed.
     Malformed {
@@ -72,7 +69,11 @@ impl fmt::Display for Error {
             }
             Error::Io { path, source } => write!(f, "{}: {source}", paths::display(path)),
             Error::Inflate { path, source } => {
-                write!(f, "{}: corrupt compressed data {source}", paths::display(path))
+                write!(
+                    f,
+                    "{}: corrupt compressed data {source}",
+                    paths::display(path)
+                )
             }
             Error::Malformed {
                 what,

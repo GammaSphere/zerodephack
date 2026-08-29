@@ -68,13 +68,12 @@ impl Sha1 {
             self.buffered = 0;
         }
 
-        // Then consume whole blocks straight from the input.
-        let mut chunks = data.chunks_exact(64);
-        for block in &mut chunks {
-            self.compress(block.try_into().expect("chunks_exact yields 64 bytes"));
+        // Then consume whole blocks straight from the input. as_chunks hands
+        // back &[u8; 64] directly, so compress needs no fallible conversion.
+        let (blocks, rest) = data.as_chunks::<64>();
+        for block in blocks {
+            self.compress(block);
         }
-
-        let rest = chunks.remainder();
         self.buffer[..rest.len()].copy_from_slice(rest);
         self.buffered = rest.len();
     }
@@ -90,8 +89,9 @@ impl Sha1 {
         self.update_raw(&bit_length.to_be_bytes());
 
         let mut digest = [0u8; 20];
-        for (chunk, word) in digest.chunks_exact_mut(4).zip(self.state) {
-            chunk.copy_from_slice(&word.to_be_bytes());
+        let (words, _) = digest.as_chunks_mut::<4>();
+        for (slot, word) in words.iter_mut().zip(self.state) {
+            *slot = word.to_be_bytes();
         }
         digest
     }
@@ -113,8 +113,9 @@ impl Sha1 {
         // The message schedule: sixteen words from the block, then sixty more
         // derived by xor and a one-bit rotation.
         let mut w = [0u32; 80];
-        for (slot, chunk) in w.iter_mut().zip(block.chunks_exact(4)) {
-            *slot = u32::from_be_bytes(chunk.try_into().expect("four bytes"));
+        let (words, _) = block.as_chunks::<4>();
+        for (slot, word) in w.iter_mut().zip(words) {
+            *slot = u32::from_be_bytes(*word);
         }
         for i in 16..80 {
             w[i] = (w[i - 3] ^ w[i - 8] ^ w[i - 14] ^ w[i - 16]).rotate_left(1);
@@ -205,15 +206,15 @@ mod tests {
         // 55, 56 and 64 bytes straddle the point where the length no longer
         // fits in the final block and a second one is needed.
         assert_eq!(
-            hex(digest(&vec![b'a'; 55])),
+            hex(digest(&[b'a'; 55])),
             "c1c8bbdc22796e28c0e15163d20899b65621d65a"
         );
         assert_eq!(
-            hex(digest(&vec![b'a'; 56])),
+            hex(digest(&[b'a'; 56])),
             "c2db330f6083854c99d4b5bfb6e8f29f201be699"
         );
         assert_eq!(
-            hex(digest(&vec![b'a'; 64])),
+            hex(digest(&[b'a'; 64])),
             "0098ba824b5c16427bd7a1122a5a442a25ec644d"
         );
         assert_eq!(

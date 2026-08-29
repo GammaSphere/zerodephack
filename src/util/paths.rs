@@ -50,7 +50,10 @@ mod tests {
 
     #[test]
     fn leaves_ordinary_paths_alone() {
-        assert_eq!(display(&PathBuf::from("/home/dev/strata")), "/home/dev/strata");
+        assert_eq!(
+            display(&PathBuf::from("/home/dev/strata")),
+            "/home/dev/strata"
+        );
         assert_eq!(display(&PathBuf::from(r"C:\projects")), r"C:\projects");
         assert_eq!(display(&PathBuf::from("relative/path")), "relative/path");
     }

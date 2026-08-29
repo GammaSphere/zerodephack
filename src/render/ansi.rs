@@ -128,7 +128,10 @@ mod tests {
     fn severity_escalates_with_the_level() {
         let palette = Palette { enabled: true };
         assert!(palette.severity("x", 0.9).contains("31"), "high is red");
-        assert!(palette.severity("x", 0.5).contains("33"), "middling is yellow");
+        assert!(
+            palette.severity("x", 0.5).contains("33"),
+            "middling is yellow"
+        );
         assert!(palette.severity("x", 0.1).contains("32"), "low is green");
     }
 }

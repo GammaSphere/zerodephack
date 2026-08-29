@@ -30,9 +30,12 @@ impl Oid {
         if text.len() != Self::HEX_LEN {
             return None;
         }
+        // as_chunks yields fixed-size arrays, so the pair destructures and
+        // no bounds check survives into the loop body.
+        let (pairs, _) = text.as_chunks::<2>();
         let mut out = [0u8; Self::LEN];
-        for (byte, pair) in out.iter_mut().zip(text.chunks_exact(2)) {
-            *byte = (hex_value(pair[0])? << 4) | hex_value(pair[1])?;
+        for (byte, &[high, low]) in out.iter_mut().zip(pairs) {
+            *byte = (hex_value(high)? << 4) | hex_value(low)?;
         }
         Some(Oid(out))
     }

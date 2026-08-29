@@ -62,17 +62,15 @@ fn detect_renames(changes: &mut Vec<Change>) {
     }
 
     let mut consumed = vec![false; changes.len()];
-    for index in 0..changes.len() {
-        if changes[index].kind != ChangeKind::Added {
+    for change in changes.iter_mut() {
+        if change.kind != ChangeKind::Added {
             continue;
         }
         // Each departure pairs with at most one arrival, so a blob copied to
         // three new paths reports one rename and two additions.
-        if let Some(sources) = departed.get_mut(&changes[index].content) {
-            if let Some(source) = sources.pop() {
-                consumed[source] = true;
-                changes[index].kind = ChangeKind::Renamed;
-            }
+        if let Some(source) = departed.get_mut(&change.content).and_then(Vec::pop) {
+            consumed[source] = true;
+            change.kind = ChangeKind::Renamed;
         }
     }
 
@@ -191,10 +189,10 @@ pub fn walk(repo: &Repository, tip: Oid, options: &Options) -> Result<History> {
 
         queue.extend(commit.parents.iter().copied());
 
-        if let Some(since) = options.since {
-            if commit.author.time < since {
-                continue;
-            }
+        if let Some(since) = options.since
+            && commit.author.time < since
+        {
+            continue;
         }
 
         let is_merge = commit.parents.len() > 1;

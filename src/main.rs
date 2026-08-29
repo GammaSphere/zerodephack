@@ -87,9 +87,7 @@ fn run(args: &Args, now: i64) -> Result<(), String> {
 
     // Warnings that qualify every number below, said once and up front.
     if repo.is_shallow() {
-        eprintln!(
-            "strata: warning: shallow clone, so every figure here is a lower bound"
-        );
+        eprintln!("strata: warning: shallow clone, so every figure here is a lower bound");
     }
     if walked.unreadable > 0 {
         eprintln!(
@@ -114,13 +112,17 @@ fn run(args: &Args, now: i64) -> Result<(), String> {
     Ok(())
 }
 
-/// Check every packed object against the id the index filed it under.
+/// Check every object against the id it is filed under.
 ///
 /// This is the strongest correctness check strata can make on itself: if a
 /// delta chain were applied wrongly by one byte, the hash would not match.
+///
+/// Loose objects are included. A repository that has never been packed keeps
+/// everything loose, and checking only packs there would report success without
+/// having verified anything at all.
 fn verify(repo: &Repository) -> Result<(), String> {
     let mut reader = repo.reader().map_err(|e| e.to_string())?;
-    let oids = repo.packed_oids();
+    let oids = repo.all_oids();
     let mut mismatched = Vec::new();
 
     for oid in &oids {
@@ -142,7 +144,12 @@ fn verify(repo: &Repository) -> Result<(), String> {
         ));
     }
 
-    eprintln!("strata: verified {} packed objects", oids.len());
+    eprintln!(
+        "strata: verified {} ({} loose, {} packed)",
+        plural(oids.len(), "object", "objects"),
+        repo.loose_oids().len(),
+        repo.packed_object_count()
+    );
     Ok(())
 }
 
@@ -235,12 +242,7 @@ fn render_summary(
 
 // ----------------------------------------------------------------- hotspots
 
-fn render_hotspots(
-    walked: &History,
-    current: &Snapshot,
-    args: &Args,
-    palette: &Palette,
-) -> String {
+fn render_hotspots(walked: &History, current: &Snapshot, args: &Args, palette: &Palette) -> String {
     let rows = reports::hotspots(walked, current, args.top);
 
     match args.format {
@@ -263,8 +265,14 @@ fn render_hotspots(
         )),
 
         Format::Csv => {
-            let mut writer =
-                csv::Writer::new(&["path", "revisions", "authors", "lines", "score", "last_change"]);
+            let mut writer = csv::Writer::new(&[
+                "path",
+                "revisions",
+                "authors",
+                "lines",
+                "score",
+                "last_change",
+            ]);
             for row in &rows {
                 writer.row(&[
                     row.path.clone(),
@@ -380,7 +388,15 @@ fn render_owners(
             }
 
             let mut table = Table::new(
-                &["file", "revs", "authors", "main author", "share", "bus", "owner last seen"],
+                &[
+                    "file",
+                    "revs",
+                    "authors",
+                    "main author",
+                    "share",
+                    "bus",
+                    "owner last seen",
+                ],
                 &[
                     Align::Left,
                     Align::Right,
@@ -440,12 +456,7 @@ fn render_owners(
 
 // ----------------------------------------------------------------- coupling
 
-fn render_coupling(
-    walked: &History,
-    current: &Snapshot,
-    args: &Args,
-    palette: &Palette,
-) -> String {
+fn render_coupling(walked: &History, current: &Snapshot, args: &Args, palette: &Palette) -> String {
     let rows = reports::coupling(walked, current, args.min_co_changes, args.top);
 
     match args.format {
@@ -499,7 +510,13 @@ fn render_coupling(
 
             let mut table = Table::new(
                 &["file", "changes with", "together", "degree", ""],
-                &[Align::Left, Align::Left, Align::Right, Align::Right, Align::Left],
+                &[
+                    Align::Left,
+                    Align::Left,
+                    Align::Right,
+                    Align::Right,
+                    Align::Left,
+                ],
             )
             .flexible_column(0);
 

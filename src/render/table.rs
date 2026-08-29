@@ -77,11 +77,11 @@ impl Table {
         // below a width where the tail of a path is still readable.
         let available = terminal_columns();
         let total: usize = widths.iter().sum::<usize>() + COLUMN_GAP * (widths.len() - 1);
-        if let Some(flex) = self.flexible {
-            if total > available {
-                let overflow = total - available;
-                widths[flex] = widths[flex].saturating_sub(overflow).max(12);
-            }
+        if let Some(flex) = self.flexible
+            && total > available
+        {
+            let overflow = total - available;
+            widths[flex] = widths[flex].saturating_sub(overflow).max(12);
         }
 
         let mut out = String::new();
@@ -92,7 +92,10 @@ impl Table {
             .enumerate()
             .map(|(i, h)| align(h, widths[i], self.aligns[i]))
             .collect();
-        out.push_str(&palette.paint(Style::Header, header.join(&" ".repeat(COLUMN_GAP)).trim_end()));
+        out.push_str(&palette.paint(
+            Style::Header,
+            header.join(&" ".repeat(COLUMN_GAP)).trim_end(),
+        ));
         out.push('\n');
 
         for row in &self.rows {

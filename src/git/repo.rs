@@ -46,10 +46,10 @@ impl Repository {
                 return Repository::open(dot_git, Some(dir.to_path_buf()));
             }
 
-            if dot_git.is_file() {
-                if let Some(git_dir) = read_gitdir_pointer(&dot_git, dir) {
-                    return Repository::open(git_dir, Some(dir.to_path_buf()));
-                }
+            if dot_git.is_file()
+                && let Some(git_dir) = read_gitdir_pointer(&dot_git, dir)
+            {
+                return Repository::open(git_dir, Some(dir.to_path_buf()));
             }
 
             // A bare repository has no `.git`; the directory is the git dir.
@@ -66,12 +66,12 @@ impl Repository {
 
         // Reading a SHA-256 repository with a SHA-1 reader would produce
         // confident nonsense, so refuse it by name.
-        if let Some(format) = config.get("extensions.objectformat") {
-            if !format.eq_ignore_ascii_case("sha1") {
-                return Err(Error::UnsupportedObjectFormat {
-                    format: format.to_string(),
-                });
-            }
+        if let Some(format) = config.get("extensions.objectformat")
+            && !format.eq_ignore_ascii_case("sha1")
+        {
+            return Err(Error::UnsupportedObjectFormat {
+                format: format.to_string(),
+            });
         }
 
         let shallow = git_dir.join("shallow").is_file();
@@ -117,6 +117,53 @@ impl Repository {
             .iter()
             .flat_map(|p| p.index().oids().iter().copied())
             .collect()
+    }
+
+    /// Every loose object id, found by walking `objects/ab/cdef...`.
+    ///
+    /// A repository that has never been packed keeps everything here, so
+    /// verification that skipped these would report success without having
+    /// checked a single object.
+    pub fn loose_oids(&self) -> Vec<Oid> {
+        let mut oids = Vec::new();
+        let objects = self.git_dir.join("objects");
+
+        let Ok(shards) = fs::read_dir(&objects) else {
+            return oids;
+        };
+
+        for shard in shards.flatten() {
+            // Object shards are exactly two hex characters; `pack` and `info`
+            // sit alongside them and are not.
+            let name = shard.file_name();
+            let Some(prefix) = name.to_str().filter(|n| n.len() == 2) else {
+                continue;
+            };
+
+            let Ok(entries) = fs::read_dir(shard.path()) else {
+                continue;
+            };
+            for entry in entries.flatten() {
+                let name = entry.file_name();
+                let Some(rest) = name.to_str() else {
+                    continue;
+                };
+                if let Some(oid) = Oid::parse_hex(format!("{prefix}{rest}").as_bytes()) {
+                    oids.push(oid);
+                }
+            }
+        }
+
+        oids
+    }
+
+    /// Every object in the repository, loose and packed.
+    pub fn all_oids(&self) -> Vec<Oid> {
+        let mut oids = self.loose_oids();
+        oids.extend(self.packed_oids());
+        oids.sort_unstable();
+        oids.dedup();
+        oids
     }
 
     pub fn head(&self) -> Result<Head> {

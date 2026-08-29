@@ -115,7 +115,9 @@ where
         // `--flag=value` is split before dispatch so both spellings land in the
         // same place.
         let (flag, inline) = match item.split_once('=') {
-            Some((flag, value)) if flag.starts_with('-') => (flag.to_string(), Some(value.to_string())),
+            Some((flag, value)) if flag.starts_with('-') => {
+                (flag.to_string(), Some(value.to_string()))
+            }
             _ => (item.clone(), None),
         };
 
@@ -151,7 +153,9 @@ where
             "--since" => {
                 let raw = value(&flag)?;
                 args.since = Some(date::parse_since(&raw, now).ok_or_else(|| {
-                    format!("--since wants a date like 2024-08-29 or an offset like 30d, got {raw:?}")
+                    format!(
+                        "--since wants a date like 2024-08-29 or an offset like 30d, got {raw:?}"
+                    )
                 })?);
             }
 
@@ -323,12 +327,19 @@ mod tests {
         let err = parse_args(&["--top"]).unwrap_err();
         assert!(err.contains("needs a value"), "{err}");
 
-        assert_eq!(parse_args(&["--top", "0"]).unwrap_err(), "--top must be at least 1");
+        assert_eq!(
+            parse_args(&["--top", "0"]).unwrap_err(),
+            "--top must be at least 1"
+        );
     }
 
     #[test]
     fn rejects_unknown_options_and_commands() {
-        assert!(parse_args(&["--nope"]).unwrap_err().contains("unknown option"));
+        assert!(
+            parse_args(&["--nope"])
+                .unwrap_err()
+                .contains("unknown option")
+        );
         assert!(
             parse_args(&["hotspots", "a", "b"])
                 .unwrap_err()

@@ -48,7 +48,10 @@ fn tally(history: &History) -> HashMap<u32, FileStats> {
             entry.revisions += 1;
             entry.last_change = entry.last_change.max(commit.time);
             *entry.by_author.entry(commit.author).or_insert(0) += 1;
-            let seen = entry.last_by_author.entry(commit.author).or_insert(i64::MIN);
+            let seen = entry
+                .last_by_author
+                .entry(commit.author)
+                .or_insert(i64::MIN);
             *seen = (*seen).max(commit.time);
         }
     }

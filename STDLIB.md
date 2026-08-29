@@ -47,8 +47,9 @@ for reading them. There is a test pinning exactly that property.
 instead of using a lookup table, which is the standard optimisation and was
 skipped for legibility. The comparison is rough — the Python side carries
 per-call interpreter overhead — but the order of magnitude is right, and the
-direction is not flattering. In practice it does not matter: `strata` runs in
-under 200 ms on a 35-commit repository, and decompression is not the bottleneck.
+direction is not flattering. In practice it does not matter: reading and
+analysing a 994-commit repository takes 105 ms end to end, and decompression is
+not the bottleneck.
 
 ---
 

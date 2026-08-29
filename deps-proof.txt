@@ -1,5 +1,5 @@
 Dependency proof for strata
-Generated 2026-08-29 09:03 UTC on x86_64-pc-windows-msvc
+Generated 2026-08-29 09:16 UTC on x86_64-pc-windows-msvc
 
 ================================================================
 $ cargo tree
@@ -7,13 +7,6 @@ $ cargo tree
 strata v0.1.0 (E:\projects\competition\zerodep)
 
 Only one node: the crate itself. No dependency edges exist.
-
-================================================================
-$ grep -A2 '\[dependencies\]' Cargo.toml
-================================================================
-[dependencies]
-
-[profile.release]
 
 ================================================================
 $ cat Cargo.lock
@@ -28,11 +21,6 @@ version = "0.1.0"
 
 One package in the lockfile. A single third-party crate would add
 a [[package]] block here, and its transitive closure with it.
-
-================================================================
-$ cargo metadata --format-version 1 --no-deps  (dependencies field)
-================================================================
-strata 0.1.0  dependencies = []
 
 ================================================================
 Toolchain

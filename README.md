@@ -191,11 +191,14 @@ a native C library.
 
 ## Reproducible build
 
-Two clean `cargo build --release` runs produce a byte-identical binary:
+Two clean `cargo build --release` runs produce a byte-identical binary. These
+hashes are for the source exactly as committed here, so if you have edited
+anything they will differ — rerun the commands below and compare the two runs
+against each other, which is what the bonus actually asks for:
 
 ```
-1c92556b97cd00eab4406417e6f9b2929e8b566666a6440bf256c15e72d65a4d
-1c92556b97cd00eab4406417e6f9b2929e8b566666a6440bf256c15e72d65a4d
+77de4144d32d4f2eb63e7980a774a187045745ff5017d40ff3ea4a710bb02ee6
+77de4144d32d4f2eb63e7980a774a187045745ff5017d40ff3ea4a710bb02ee6
 ```
 
 MSVC embeds a link timestamp and a debug GUID by default, so

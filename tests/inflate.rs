@@ -170,3 +170,49 @@ fn adler32_matches_the_rfc_examples() {
     assert_eq!(inflate::adler32(b"a"), 0x0062_0062);
     assert_eq!(inflate::adler32(b"Wikipedia"), 0x11E6_0398);
 }
+
+/// Throughput measurement, not a correctness test, so it stays out of the
+/// normal run. The number it prints goes in STDLIB.md, where the honest
+/// comparison against zlib belongs.
+///
+///     cargo test --release --test inflate -- --ignored --nocapture
+#[test]
+#[ignore = "measurement, not a test"]
+fn measure_throughput() {
+    let dir = fixtures();
+    let mut streams = Vec::new();
+    let mut total_output = 0usize;
+
+    for entry in fs::read_dir(&dir).expect("fixture directory") {
+        let path = entry.expect("entry").path();
+        if path.extension().and_then(|e| e.to_str()) != Some("z") {
+            continue;
+        }
+        let stem = path.file_stem().unwrap().to_str().unwrap().to_string();
+        let raw_len = fs::metadata(dir.join(format!("{}.raw", raw_name_for(&stem))))
+            .expect("raw payload")
+            .len() as usize;
+        streams.push((fs::read(&path).expect("stream"), raw_len));
+        total_output += raw_len;
+    }
+
+    // Enough rounds that the timer is measuring work rather than noise.
+    const ROUNDS: usize = 20;
+    let start = std::time::Instant::now();
+    for _ in 0..ROUNDS {
+        for (compressed, size) in &streams {
+            let out = inflate::zlib_decompress(compressed, *size).expect("decodes");
+            std::hint::black_box(&out);
+        }
+    }
+    let elapsed = start.elapsed();
+
+    let bytes = (total_output * ROUNDS) as f64;
+    let mib_per_second = bytes / elapsed.as_secs_f64() / (1024.0 * 1024.0);
+    println!(
+        "inflate: {:.1} MiB/s decompressed ({} streams, {:.1} MiB per round, {ROUNDS} rounds)",
+        mib_per_second,
+        streams.len(),
+        total_output as f64 / (1024.0 * 1024.0),
+    );
+}

@@ -2,3 +2,4 @@
 
 pub mod date;
 pub mod inflate;
+pub mod width;

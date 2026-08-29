@@ -12,4 +12,5 @@
 
 pub mod analysis;
 pub mod git;
+pub mod render;
 pub mod util;

@@ -106,6 +106,68 @@ fn civil_from_days(days: i64) -> (i64, u32, u32) {
     (if month <= 2 { year + 1 } else { year }, month, day)
 }
 
+/// A calendar date back to epoch seconds, the inverse of [`civil_from_days`].
+///
+/// No validation of the day against the month's length: 2024-02-31 converts to
+/// the same instant as 2024-03-02, exactly as `mktime` would. Callers parsing
+/// user input should reject nonsense before getting here.
+pub fn to_epoch(year: i64, month: u32, day: u32) -> i64 {
+    let month = month as i64;
+    let day = day as i64;
+
+    // Shift so the year starts in March, putting the leap day at the end.
+    let y = if month <= 2 { year - 1 } else { year };
+    let era = if y >= 0 { y } else { y - 399 } / 400;
+    let year_of_era = y - era * 400;
+
+    let shifted_month = if month > 2 { month - 3 } else { month + 9 };
+    let day_of_year = (153 * shifted_month + 2) / 5 + day - 1;
+    let day_of_era =
+        year_of_era * 365 + year_of_era / 4 - year_of_era / 100 + day_of_year;
+
+    (era * 146_097 + day_of_era - 719_468) * SECONDS_PER_DAY
+}
+
+/// Parse `--since`: either an ISO date, or a count of days, weeks, months or
+/// years back from `now`.
+///
+/// `2024-08-29`, `30d`, `6w`, `3m` and `2y` are all accepted.
+pub fn parse_since(text: &str, now: i64) -> Option<i64> {
+    let text = text.trim();
+
+    if let Some((count, unit)) = split_relative(text) {
+        let days = match unit {
+            'd' => count,
+            'w' => count * 7,
+            // Approximate months and years; `--since` is a coarse filter and
+            // pretending otherwise would be false precision.
+            'm' => count * 30,
+            'y' => count * 365,
+            _ => return None,
+        };
+        return Some(now - days * SECONDS_PER_DAY);
+    }
+
+    let mut parts = text.split('-');
+    let year: i64 = parts.next()?.parse().ok()?;
+    let month: u32 = parts.next()?.parse().ok()?;
+    let day: u32 = parts.next()?.parse().ok()?;
+    if parts.next().is_some() || !(1..=12).contains(&month) || !(1..=31).contains(&day) {
+        return None;
+    }
+
+    Some(to_epoch(year, month, day))
+}
+
+fn split_relative(text: &str) -> Option<(i64, char)> {
+    let unit = text.chars().last()?;
+    if !matches!(unit, 'd' | 'w' | 'm' | 'y') {
+        return None;
+    }
+    let count: i64 = text[..text.len() - unit.len_utf8()].parse().ok()?;
+    (count >= 0).then_some((count, unit))
+}
+
 /// Render a duration in whole days as something a person reads at a glance.
 pub fn humanise_days(days: i64) -> String {
     match days {
@@ -204,5 +266,65 @@ mod tests {
         assert_eq!(humanise_days(45), "45 days");
         assert_eq!(humanise_days(90), "3 months");
         assert_eq!(humanise_days(1000), "2.7 years");
+    }
+}
+
+#[cfg(test)]
+mod roundtrip_tests {
+    use super::*;
+
+    #[test]
+    fn to_epoch_inverts_from_epoch() {
+        for &seconds in &[
+            0i64,
+            1_724_889_600,
+            951_782_400,
+            1_709_164_800,
+            -2_208_988_800,
+            -86_400,
+        ] {
+            let date = from_epoch(seconds);
+            assert_eq!(
+                to_epoch(date.year, date.month, date.day),
+                seconds - seconds.rem_euclid(SECONDS_PER_DAY),
+                "round trip failed for {seconds}"
+            );
+        }
+    }
+
+    #[test]
+    fn to_epoch_matches_known_dates() {
+        assert_eq!(to_epoch(1970, 1, 1), 0);
+        assert_eq!(to_epoch(2024, 8, 29), 1_724_889_600);
+        assert_eq!(to_epoch(2000, 2, 29), 951_782_400);
+        assert_eq!(to_epoch(1900, 1, 1), -2_208_988_800);
+    }
+
+    #[test]
+    fn parses_iso_dates() {
+        assert_eq!(parse_since("2024-08-29", 0), Some(1_724_889_600));
+        assert_eq!(parse_since("  2024-08-29  ", 0), Some(1_724_889_600));
+    }
+
+    #[test]
+    fn parses_relative_offsets() {
+        let now = 1_724_889_600;
+        assert_eq!(parse_since("0d", now), Some(now));
+        assert_eq!(parse_since("1d", now), Some(now - SECONDS_PER_DAY));
+        assert_eq!(parse_since("2w", now), Some(now - 14 * SECONDS_PER_DAY));
+        assert_eq!(parse_since("3m", now), Some(now - 90 * SECONDS_PER_DAY));
+        assert_eq!(parse_since("1y", now), Some(now - 365 * SECONDS_PER_DAY));
+    }
+
+    #[test]
+    fn rejects_nonsense() {
+        assert_eq!(parse_since("", 0), None);
+        assert_eq!(parse_since("yesterday", 0), None);
+        assert_eq!(parse_since("2024-13-01", 0), None, "month out of range");
+        assert_eq!(parse_since("2024-00-01", 0), None);
+        assert_eq!(parse_since("2024-08-32", 0), None, "day out of range");
+        assert_eq!(parse_since("2024-08", 0), None, "incomplete");
+        assert_eq!(parse_since("2024-08-29-01", 0), None, "too many parts");
+        assert_eq!(parse_since("-5d", 0), None, "negative offset");
     }
 }
